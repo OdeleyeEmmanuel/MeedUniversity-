@@ -1,0 +1,119 @@
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Route, Routes, Link, Navigate } from 'react-router-dom';
+import io from 'socket.io-client';
+import axios from 'axios';
+
+const socket = io('http://localhost:5000');
+
+function Home() {
+  return (
+    <div>
+      <h1>Welcome to MeedUniversity</h1>
+      <nav>
+        <Link to="/login">Login</Link> | <Link to="/register">Register</Link>
+      </nav>
+    </div>
+  );
+}
+
+function Register() {
+  const [user, setUser] = useState({ name: '', email: '', password: '' });
+  const handleChange = (e) => setUser({ ...user, [e.target.name]: e.target.value });
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await axios.post('http://localhost:5000/register', user);
+    alert('Registered Successfully!');
+  };
+  
+  return (
+    <div>
+      <h2>Register</h2>
+      <form onSubmit={handleSubmit}>
+        <input type="text" name="name" placeholder="Name" onChange={handleChange} required />
+        <input type="email" name="email" placeholder="Email" onChange={handleChange} required />
+        <input type="password" name="password" placeholder="Password" onChange={handleChange} required />
+        <button type="submit">Register</button>
+      </form>
+    </div>
+  );
+}
+
+function Login() {
+  const [user, setUser] = useState({ email: '', password: '' });
+  const [token, setToken] = useState(localStorage.getItem('token'));
+  const handleChange = (e) => setUser({ ...user, [e.target.name]: e.target.value });
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const res = await axios.post('http://localhost:5000/login', user);
+    localStorage.setItem('token', res.data.token);
+    setToken(res.data.token);
+  };
+
+  if (token) return <Navigate to="/dashboard" />;
+  
+  return (
+    <div>
+      <h2>Login</h2>
+      <form onSubmit={handleSubmit}>
+        <input type="email" name="email" placeholder="Email" onChange={handleChange} required />
+        <input type="password" name="password" placeholder="Password" onChange={handleChange} required />
+        <button type="submit">Login</button>
+      </form>
+    </div>
+  );
+}
+
+function Dashboard() {
+  const [message, setMessage] = useState('');
+  const [chat, setChat] = useState([]);
+  const [projects, setProjects] = useState([]);
+  
+  useEffect(() => {
+    socket.on('message', (data) => setChat((prev) => [...prev, data]));
+    axios.get('http://localhost:5000/projects').then(res => setProjects(res.data));
+  }, []);
+
+  const sendMessage = () => {
+    socket.emit('message', message);
+    setMessage('');
+  };
+
+  const createProject = async () => {
+    await axios.post('http://localhost:5000/projects', { title: 'New Project', description: 'Build something amazing!' });
+    alert('Project Created!');
+  };
+
+  return (
+    <div>
+      <h2>Dashboard</h2>
+      <button onClick={createProject}>Create Project</button>
+      <h3>Chat</h3>
+      <input value={message} onChange={(e) => setMessage(e.target.value)} />
+      <button onClick={sendMessage}>Send</button>
+      <div>
+        {chat.map((msg, index) => <p key={index}>{msg}</p>)}
+      </div>
+      <h3>Your Projects</h3>
+      <ul>
+        {projects.map((proj) => (
+          <li key={proj._id}>{proj.title}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;
